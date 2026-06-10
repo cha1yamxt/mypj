@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกและจัดการโครงงาน</title>
+    <!-- Tailwind CSS สำหรับ Layout และ Utility พื้นฐาน -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome สำหรับไอคอน -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Prompt) -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ================= CSS Variables สำหรับ Theme ================= */
+        :root {
+            --bg-color: #f0fdf4; /* Light Green theme base */
+            --text-main: #1f2937;
+            --text-muted: #4b5563;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --secondary: #3b82f6;
+            --danger: #ef4444;
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark-theme {
+            --bg-color: #111827;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --card-bg: rgba(31, 41, 55, 0.8);
+            --primary: #059669;
+            --primary-hover: #10b981;
+            --secondary: #60a5fa;
+            --danger: #f87171;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ================= Global Styles ================= */
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            transition: background-color 0.5s ease, color 0.5s ease;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ซ่อน Scrollbar แต่ยัง scroll ได้ */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+
+        /* ================= Animations ================= */
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100vh;
+            opacity: 0;
+            transform: translateY(20px) scale(0.98);
+            pointer-events: none;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: all;
+            position: relative;
+        }
+
+        /* Button Click Animation */
+        .btn-anim {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-anim:active {
+            transform: scale(0.92);
+        }
+
+        /* Glassmorphism Card */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Modal Animations */
+        .modal-overlay {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal-content {
+            transform: scale(0.8) translateY(-50px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        /* Bubble Menu Animation (Hamburger -> +) */
+        .bubble-menu-container {
+            position: relative;
+            z-index: 50;
+        }
+        .bubble-main {
+            z-index: 2;
+            position: relative;
+        }
+        .bubble-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 1;
+        }
+        .bubble-menu-container.open .bubble-item.add-btn {
+            opacity: 1;
+            transform: translate(60px, 0) scale(1) rotate(360deg);
+        }
+
+        /* Slide Out Trash Animation */
+        .project-item-content {
+            transition: transform 0.3s ease;
+        }
+        .trash-btn-container {
+            position: absolute;
+            right: -60px; /* ซ่อนไว้นอกกรอบ */
+            top: 0;
+            height: 100%;
+            width: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: right 0.3s ease;
+            opacity: 0;
+        }
+        .project-item.edit-mode .project-item-content {
+            transform: translateX(-60px);
+        }
+        .project-item.edit-mode .trash-btn-container {
+            right: 10px;
+            opacity: 1;
+        }
+
+        /* Flow Animations (หน้าเลือกโครงงาน) */
+        .flow-step {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(-20px);
+        }
+        .flow-step.show {
+            max-height: 1000px; /* รองรับเนื้อหาเยอะ */
+            opacity: 1;
+            transform: translateY(0);
+            margin-top: 1rem;
+            overflow: visible;
+        }
+
+        /* อนิเมชั่นช่องกรอกข้อมูล */
+        .input-field {
+            background-color: transparent;
+            color: var(--text-main);
+            border: 2px solid var(--text-muted);
+            transition: all 0.3s ease;
+        }
+        .input-field:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+            outline: none;
+        }
+
+        /* Suggestion Tooltip */
+        .suggestion-box {
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        .suggestion-box.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="antialiased relative">
+
+    <!-- Theme Toggle -->
+    <button id="themeToggle" class="fixed top-4 right-4 z-50 p-3 rounded-full glass-card btn-anim text-xl w-12 h-12 flex items-center justify-center">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- ================= PAGE 1: HOME ================= -->
+    <div id="homePage" class="page active px-6 py-12 items-center justify-center">
+        <div class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500" style="line-height: 1.4;">
+                <i class="fas fa-rocket mr-2"></i> ระบบจัดการโครงงาน
+            </h1>
+            <p class="text-lg opacity-80">บันทึก ติดตาม และสำเร็จทุกเป้าหมายอย่างสวยงาม</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8 w-full max-w-4xl">
+            <!-- Go to Record -->
+            <div onclick="switchPage('recordPage')" class="glass-card p-8 rounded-3xl cursor-pointer flex flex-col items-center text-center group btn-anim">
+                <div class="w-24 h-24 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fas fa-folder-plus text-4xl text-emerald-500"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">1. การบันทึกโครงงาน</h2>
+                <p class="opacity-70 text-sm">เพิ่ม ลบ แก้ไข หัวข้อโครงงาน วัตถุประสงค์ และรายละเอียดต่างๆ</p>
+            </div>
+
+            <!-- Go to Progress -->
+            <div onclick="switchPage('progressPage')" class="glass-card p-8 rounded-3xl cursor-pointer flex flex-col items-center text-center group btn-anim">
+                <div class="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fas fa-tasks text-4xl text-blue-500"></i>
+                </div>
+                <h2 class="text-2xl font-semibold mb-2">2. หน้าเลือกโครงงาน</h2>
+                <p class="opacity-70 text-sm">เลือกโครงงาน อัปเดตแผนการดำเนินงาน และยืนยันความสำเร็จ</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PAGE 2: RECORD PROJECT ================= -->
+    <div id="recordPage" class="page px-4 py-8">
+        <div class="max-w-3xl mx-auto w-full relative h-full flex flex-col">
+            <!-- Header Bar -->
+            <div class="flex justify-between items-center mb-8 relative z-40">
+                <div class="flex items-center gap-4">
+                    <button onclick="switchPage('homePage')" class="w-10 h-10 rounded-full glass-card flex items-center justify-center btn-anim">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    
+                    <!-- Bubble Menu (Hamburger) -->
+                    <div class="bubble-menu-container" id="bubbleMenu">
+                        <button class="bubble-main w-12 h-12 rounded-full bg-[var(--primary)] text-white shadow-lg flex items-center justify-center btn-anim text-xl" onclick="toggleBubble()">
+                            <i class="fas fa-bars transition-transform duration-300" id="hamburgerIcon"></i>
+                        </button>
+                        <!-- Bubble Item (+) -->
+                        <button class="bubble-item add-btn w-12 h-12 rounded-full bg-yellow-400 text-gray-900 shadow-lg flex items-center justify-center btn-anim text-xl font-bold" onclick="openAddModal()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <h2 class="text-2xl font-bold">บันทึกโครงงาน</h2>
+            </div>
+
+            <!-- Project List -->
+            <div id="projectList" class="flex-1 overflow-y-auto pb-20 space-y-4 pr-2">
+                <!-- ข้อมูลจะถูก Render ที่นี่ด้วย JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PAGE 3: PROGRESS / SELECTION ================= -->
+    <div id="progressPage" class="page px-4 py-8">
+         <div class="max-w-3xl mx-auto w-full relative h-full flex flex-col">
+            <!-- Header Bar -->
+            <div class="flex items-center gap-4 mb-8">
+                <button onclick="switchPage('homePage')" class="w-10 h-10 rounded-full glass-card flex items-center justify-center btn-anim">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 class="text-2xl font-bold">ดำเนินการโครงงาน</h2>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl w-full">
+                <label class="block text-sm font-semibold mb-2 opacity-80">เลือกโครงงานของคุณ</label>
+                <select id="projectSelect" class="w-full p-4 rounded-xl input-field appearance-none cursor-pointer text-lg font-medium" onchange="handleProjectSelect()">
+                    <option value="">-- กรุณาเลือกโครงงาน --</option>
+                    <!-- Options JS -->
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-10 top-[100px] flex items-center px-2 text-gray-500">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+
+            <!-- Flow Container -->
+            <div id="flowContainer" class="w-full pb-20">
+                <!-- ขั้นตอนที่ 1: Approve / Pass -->
+                <div id="stepApprove" class="flow-step flex justify-center gap-6 mt-6">
+                    <button onclick="handlePass()" class="px-8 py-3 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 font-bold hover:bg-red-200 btn-anim border border-red-200 dark:border-red-800 shadow-sm">
+                        <i class="fas fa-times mr-2"></i> PASS
+                    </button>
+                    <button onclick="handleApprove()" class="px-8 py-3 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold hover:bg-emerald-200 btn-anim border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                        <i class="fas fa-check mr-2"></i> APPROVE
+                    </button>
+                </div>
+
+                <!-- ขั้นตอนที่ 2: Action Plans -->
+                <div id="stepPlans" class="flow-step flex flex-col gap-4 mt-6">
+                    <div id="planList" class="flex flex-col gap-4">
+                        <!-- Textareas plans -->
+                    </div>
+                    
+                    <div id="planControls" class="flex justify-center gap-4 mt-4 relative">
+                        <button onclick="addPlanBox()" class="w-12 h-12 rounded-full bg-[var(--primary)] text-white shadow-lg flex items-center justify-center btn-anim text-xl">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button onclick="confirmSuccessModal()" class="px-8 py-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold shadow-lg btn-anim flex items-center gap-2">
+                            <i class="fas fa-trophy"></i> SUCCESS
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ขั้นตอนที่ 3: Completed / Non Success -->
+                <div id="stepCompleted" class="flow-step flex flex-col items-center gap-6 mt-6">
+                    <div class="glass-card p-6 rounded-2xl border-2 border-emerald-500 text-center w-full relative overflow-hidden">
+                        <div class="absolute -right-10 -top-10 opacity-10">
+                            <i class="fas fa-check-circle text-9xl text-emerald-500"></i>
+                        </div>
+                        <h3 class="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mb-2">เสร็จสิ้นแล้ว 🎉</h3>
+                        <p class="opacity-80">โครงงานนี้ดำเนินการเสร็จสมบูรณ์</p>
+                    </div>
+                    
+                    <button onclick="handleNonSuccess()" class="px-8 py-3 rounded-full bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 font-bold hover:bg-gray-300 btn-anim shadow-sm border border-gray-300 dark:border-gray-600">
+                        <i class="fas fa-undo mr-2"></i> NON SUCCESS (ทำต่อ)
+                    </button>
+                </div>
+            </div>
+         </div>
+    </div>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Modal เพิ่มโครงงาน -->
+    <div id="addModal" class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40" onclick="closeAddModal()"></div>
+        <div class="modal-content glass-card w-full max-w-xl rounded-3xl p-6 relative z-10 max-h-[90vh] overflow-y-auto">
+            <button onclick="closeAddModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200 btn-anim">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3 class="text-2xl font-bold mb-6 text-center text-[var(--primary)]">เพิ่มโครงงานใหม่</h3>
+            
+            <form id="projectForm" class="space-y-5" onsubmit="saveProject(event)">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">ชื่อโครงงาน</label>
+                    <input type="text" id="pName" required class="w-full p-3 rounded-xl input-field" placeholder="ใส่ชื่อโครงงานของคุณ...">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">วัตถุประสงค์</label>
+                    <textarea id="pObjective" required rows="2" class="w-full p-3 rounded-xl input-field resize-none" placeholder="ทำเพื่ออะไร..."></textarea>
+                </div>
+                <div class="relative">
+                    <label class="block text-sm font-semibold mb-1 flex justify-between">
+                        อุปกรณ์ 
+                        <span class="text-xs text-emerald-500 font-normal"><i class="fas fa-keyboard"></i> เว้นวรรคเพื่อดูคำใบ้ / Enter เพื่อขึ้นข้อใหม่</span>
+                    </label>
+                    <textarea id="pEquipment" rows="3" class="w-full p-3 rounded-xl input-field resize-none" placeholder="1. "></textarea>
+                    
+                    <!-- Suggestion Box (แสดงเมื่อเว้นวรรค) -->
+                    <div id="suggestionBox" class="suggestion-box absolute left-0 -bottom-10 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-3 py-1 rounded-lg shadow-md text-sm border border-yellow-300 dark:border-yellow-700">
+                        <i class="fas fa-lightbulb mr-1"></i> <span id="suggestionText">เช่น คอมพิวเตอร์, ปากกา, สมุด...</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">รายละเอียดเพิ่มเติม</label>
+                    <textarea id="pDetails" rows="2" class="w-full p-3 rounded-xl input-field resize-none" placeholder="รายละเอียดอื่นๆ..."></textarea>
+                </div>
+                
+                <button type="submit" class="w-full py-4 rounded-xl bg-[var(--primary)] text-white font-bold text-lg hover:bg-[var(--primary-hover)] btn-anim shadow-lg mt-4">
+                    เพิ่มหัวข้อโครงงานนี้ <i class="fas fa-paper-plane ml-2"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal ดูรายละเอียดโครงงาน -->
+    <div id="detailModal" class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40" onclick="closeDetailModal()"></div>
+        <div class="modal-content glass-card w-full max-w-lg rounded-3xl p-6 relative z-10">
+            <button onclick="closeDetailModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 btn-anim">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3 class="text-2xl font-bold mb-4 pr-8 border-b pb-2 border-gray-200 dark:border-gray-700" id="detailName">ชื่อโครงงาน</h3>
+            
+            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div>
+                    <span class="text-sm font-bold text-[var(--primary)]"><i class="fas fa-bullseye mr-1"></i> วัตถุประสงค์:</span>
+                    <p id="detailObjective" class="mt-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg"></p>
+                </div>
+                <div>
+                    <span class="text-sm font-bold text-orange-500"><i class="fas fa-tools mr-1"></i> อุปกรณ์:</span>
+                    <pre id="detailEquipment" class="mt-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg font-sans whitespace-pre-wrap"></pre>
+                </div>
+                <div>
+                    <span class="text-sm font-bold text-blue-500"><i class="fas fa-info-circle mr-1"></i> รายละเอียดเพิ่มเติม:</span>
+                    <p id="detailDetails" class="mt-1 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ยืนยันความสำเร็จ -->
+    <div id="confirmModal" class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40" onclick="closeConfirmModal()"></div>
+        <div class="modal-content glass-card w-full max-w-sm rounded-3xl p-6 relative z-10 text-center">
+            <div class="w-20 h-20 mx-auto bg-blue-100 text-blue-500 rounded-full flex items-center justify-center text-4xl mb-4">
+                <i class="fas fa-question"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">โครงงานเสร็จสิ้นแล้วใช่หรือไม่?</h3>
+            <p class="text-sm opacity-70 mb-6">คุณกำลังจะยืนยันว่าโครงงานนี้เสร็จสมบูรณ์</p>
+            <div class="flex gap-4">
+                <button onclick="closeConfirmModal()" class="flex-1 py-3 rounded-xl bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 font-bold btn-anim">ยกเลิก</button>
+                <button onclick="handleSuccessConfirmed()" class="flex-1 py-3 rounded-xl bg-[var(--primary)] text-white font-bold btn-anim shadow-lg">ยืนยันเสร็จสิ้น</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================= Data State =================
+        let projects = JSON.parse(localStorage.getItem('myProjectsData')) || [];
+        // โครงสร้าง Project: { id, name, objective, equipment, details, status: 'pending'|'approved'|'success', plans: ['text1', 'text2'] }
+        let currentActiveProjectId = null;
+
+        // ================= Initialization =================
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            renderProjectList();
+            setupEquipmentInputLogic();
+        });
+
+        // ================= Theme Logic =================
+        const themeToggle = document.getElementById('themeToggle');
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+                themeToggle.innerHTML = '<i class="fas fa-sun text-yellow-400"></i>';
+            }
+        }
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-theme');
+            const isDark = document.body.classList.contains('dark-theme');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.innerHTML = isDark ? '<i class="fas fa-sun text-yellow-400"></i>' : '<i class="fas fa-moon"></i>';
+            
+            // Animation กดปุ่ม
+            themeToggle.style.transform = 'rotate(360deg) scale(0.8)';
+            setTimeout(() => { themeToggle.style.transform = 'rotate(0deg) scale(1)'; }, 300);
+        });
+
+        // ================= Navigation Logic =================
+        function switchPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+
+            if (pageId === 'recordPage') {
+                renderProjectList();
+            } else if (pageId === 'progressPage') {
+                renderSelectOptions();
+                resetFlow(); // Reset visual state
+            }
+        }
+
+        // ================= PAGE 1: RECORD LOGIC =================
+
+        // Bubble Menu
+        const bubbleMenu = document.getElementById('bubbleMenu');
+        const hamburgerIcon = document.getElementById('hamburgerIcon');
+        let isEditModeGlobal = false;
+
+        function toggleBubble() {
+            bubbleMenu.classList.toggle('open');
+            if (bubbleMenu.classList.contains('open')) {
+                hamburgerIcon.classList.remove('fa-bars');
+                hamburgerIcon.classList.add('fa-times');
+            } else {
+                hamburgerIcon.classList.remove('fa-times');
+                hamburgerIcon.classList.add('fa-bars');
+            }
+        }
+
+        // Add Modal
+        function openAddModal() {
+            toggleBubble(); // ปิดเมนู
+            document.getElementById('addModal').classList.add('active');
+            document.getElementById('pEquipment').value = "1. "; // ตั้งต้นเลข 1
+            setTimeout(() => document.getElementById('pName').focus(), 100);
+        }
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('active');
+            document.getElementById('projectForm').reset();
+        }
+
+        // Equipment Input Logic (Enter & Spacebar)
+        function setupEquipmentInputLogic() {
+            const equipInput = document.getElementById('pEquipment');
+            const sugBox = document.getElementById('suggestionBox');
+            let suggestionTimer;
+
+            equipInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const lines = equipInput.value.split('\n');
+                    const nextNum = lines.length + 1;
+                    const cursorPos = equipInput.selectionStart;
+                    const textBefore = equipInput.value.substring(0, cursorPos);
+                    const textAfter = equipInput.value.substring(cursorPos, equipInput.value.length);
+                    
+                    equipInput.value = textBefore + '\n' + nextNum + '. ' + textAfter;
+                    
+                    // เลื่อนเคอร์เซอร์ไปหลังตัวเลข
+                    equipInput.selectionStart = equipInput.selectionEnd = cursorPos + nextNum.toString().length + 3;
+                } else if (e.key === ' ') {
+                    // โชว์กล่องใบ้คำ
+                    sugBox.classList.add('show');
+                    clearTimeout(suggestionTimer);
+                    suggestionTimer = setTimeout(() => {
+                        sugBox.classList.remove('show');
+                    }, 2000); // หายไปเองใน 2 วิ
+                }
+            });
+        }
+
+        // Save Data
+        function saveProject(e) {
+            e.preventDefault();
+            const newProject = {
+                id: Date.now().toString(),
+                name: document.getElementById('pName').value,
+                objective: document.getElementById('pObjective').value,
+                equipment: document.getElementById('pEquipment').value,
+                details: document.getElementById('pDetails').value,
+                status: 'pending',
+                plans: [''] // ค่าเริ่มต้นแผนงาน 1 กล่องว่างๆ
+            };
+            projects.push(newProject);
+            localStorage.setItem('myProjectsData', JSON.stringify(projects));
+            closeAddModal();
+            renderProjectList();
+        }
+
+        // Render List
+        function renderProjectList() {
+            const listContainer = document.getElementById('projectList');
+            listContainer.innerHTML = '';
+
+            if (projects.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center p-10 opacity-50 flex flex-col items-center justify-center">
+                        <i class="fas fa-folder-open text-5xl mb-3"></i>
+                        <p>ยังไม่มีโครงงาน กดปุ่ม + เพื่อเพิ่ม</p>
+                    </div>`;
+                return;
+            }
+
+            projects.forEach((proj, index) => {
+                const item = document.createElement('div');
+                item.className = `project-item relative glass-card rounded-2xl overflow-hidden shadow-sm`;
+                item.style.animation = `slideDown 0.4s ease ${index * 0.1}s forwards`;
+                item.style.opacity = "0";
+
+                // ใส่ Keyframes สดสำหรับการ render
+                if(!document.getElementById('dynamicAnims')) {
+                    const style = document.createElement('style');
+                    style.id = 'dynamicAnims';
+                    style.innerHTML = `@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`;
+                    document.head.appendChild(style);
+                }
+
+                item.innerHTML = `
+                    <!-- ปุ่มถังขยะซ่อนอยู่ด้านหลัง/ขวา -->
+                    <div class="trash-btn-container z-0">
+                        <button onclick="deleteProject('${proj.id}')" class="w-10 h-10 bg-red-500 text-white rounded-xl flex items-center justify-center hover:bg-red-600 btn-anim shadow-md">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+
+                    <!-- เนื้อหาหลัก -->
+                    <div class="project-item-content relative z-10 bg-[var(--card-bg)] p-5 border-l-4 border-[var(--primary)] flex flex-col gap-2">
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-bold text-lg leading-tight w-3/4">${proj.name}</h4>
+                            <div class="flex gap-2">
+                                <button onclick="toggleEditMode(this)" class="w-8 h-8 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center btn-anim text-sm">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-sm opacity-70 line-clamp-2">${proj.objective}</p>
+                        
+                        <div class="mt-2 text-right">
+                            <button onclick="openDetailModal('${proj.id}')" class="text-xs font-bold text-[var(--secondary)] hover:underline btn-anim px-3 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-full inline-block">
+                                ดูรายละเอียดทั้งหมด <i class="fas fa-chevron-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        // Toggle Edit Mode (ลบ)
+        function toggleEditMode(btn) {
+            const projectItem = btn.closest('.project-item');
+            projectItem.classList.toggle('edit-mode');
+            
+            // เปลี่ยนไอคอนดินสอ
+            const icon = btn.querySelector('i');
+            if (projectItem.classList.contains('edit-mode')) {
+                icon.classList.replace('fa-pencil-alt', 'fa-times');
+                btn.classList.replace('text-orange-500', 'text-gray-500');
+                btn.classList.replace('bg-orange-100', 'bg-gray-200');
+            } else {
+                icon.classList.replace('fa-times', 'fa-pencil-alt');
+                btn.classList.replace('text-gray-500', 'text-orange-500');
+                btn.classList.replace('bg-gray-200', 'bg-orange-100');
+            }
+        }
+
+        // Delete Project
+        function deleteProject(id) {
+            projects = projects.filter(p => p.id !== id);
+            localStorage.setItem('myProjectsData', JSON.stringify(projects));
+            
+            // ถ้าลบโครงงานที่เลือกค้างไว้ในหน้า 2
+            if(currentActiveProjectId === id) currentActiveProjectId = null;
+            
+            renderProjectList();
+        }
+
+        // Detail Modal
+        function openDetailModal(id) {
+            const proj = projects.find(p => p.id === id);
+            if(!proj) return;
+            
+            document.getElementById('detailName').innerText = proj.name;
+            document.getElementById('detailObjective').innerText = proj.objective;
+            document.getElementById('detailEquipment').innerText = proj.equipment;
+            document.getElementById('detailDetails').innerText = proj.details || 'ไม่มีรายละเอียดเพิ่มเติม';
+            
+            document.getElementById('detailModal').classList.add('active');
+        }
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+
+        // ================= PAGE 2: PROGRESS LOGIC =================
+
+        function renderSelectOptions() {
+            const select = document.getElementById('projectSelect');
+            select.innerHTML = '<option value="">-- กรุณาเลือกโครงงาน --</option>';
+            projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                // แสดงสถานะท้ายชื่อ
+                let statusIcon = '';
+                if(p.status === 'success') statusIcon = ' (✅ เสร็จสิ้น)';
+                else if(p.status === 'approved') statusIcon = ' (⏳ กำลังทำ)';
+                opt.text = p.name + statusIcon;
+                select.appendChild(opt);
+            });
+            
+            if(currentActiveProjectId) {
+                select.value = currentActiveProjectId;
+            }
+        }
+
+        function resetFlow() {
+            document.getElementById('stepApprove').classList.remove('show');
+            document.getElementById('stepPlans').classList.remove('show');
+            document.getElementById('stepCompleted').classList.remove('show');
+            
+            if(currentActiveProjectId) {
+                const proj = projects.find(p => p.id === currentActiveProjectId);
+                if(proj) renderFlowState(proj);
+            }
+        }
+
+        function handleProjectSelect() {
+            const select = document.getElementById('projectSelect');
+            currentActiveProjectId = select.value;
+            
+            if (!currentActiveProjectId) {
+                resetFlow();
+                return;
+            }
+
+            const proj = projects.find(p => p.id === currentActiveProjectId);
+            
+            // อนิเมชั่นปิดก่อนเพื่อรีเซ็ต
+            document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('show'));
+            
+            // หน่วงเวลาเล็กน้อยเพื่อให้เห็นอนิเมชั่นเลื่อนลง
+            setTimeout(() => {
+                renderFlowState(proj);
+            }, 300);
+        }
+
+        function renderFlowState(proj) {
+            if (proj.status === 'pending') {
+                document.getElementById('stepApprove').classList.add('show');
+            } else if (proj.status === 'approved') {
+                document.getElementById('stepPlans').classList.add('show');
+                renderPlanBoxes(proj);
+            } else if (proj.status === 'success') {
+                document.getElementById('stepCompleted').classList.add('show');
+            }
+        }
+
+        function handlePass() {
+            currentActiveProjectId = null;
+            document.getElementById('projectSelect').value = "";
+            document.getElementById('stepApprove').classList.remove('show');
+        }
+
+        function handleApprove() {
+            if(!currentActiveProjectId) return;
+            const proj = projects.find(p => p.id === currentActiveProjectId);
+            proj.status = 'approved';
+            saveProjectsToLocal();
+            
+            document.getElementById('stepApprove').classList.remove('show');
+            
+            setTimeout(() => {
+                renderSelectOptions(); // Update text
+                document.getElementById('stepPlans').classList.add('show');
+                renderPlanBoxes(proj);
+            }, 400); // รอให้ปุ่ม approve หายไปก่อนสไลด์ plans ลงมา
+        }
+
+        // Action Plans Render
+        function renderPlanBoxes(proj) {
+            const container = document.getElementById('planList');
+            container.innerHTML = '';
+            
+            if(!proj.plans || proj.plans.length === 0) proj.plans = [''];
+
+            proj.plans.forEach((text, index) => {
+                createPlanBox(index, text, container);
+            });
+        }
+
+        function createPlanBox(index, text, container) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative glass-card p-4 rounded-xl';
+            wrapper.style.animation = 'slideDown 0.3s ease forwards';
+            
+            const label = document.createElement('label');
+            label.className = 'block text-sm font-semibold mb-2 text-[var(--primary)]';
+            label.innerText = `แผนการดำเนินงาน กล่องที่ ${index + 1}`;
+            
+            const textarea = document.createElement('textarea');
+            textarea.className = 'w-full p-3 rounded-lg input-field resize-y min-h-[100px]';
+            textarea.placeholder = "ใส่รายละเอียดแผนการดำเนินงาน...";
+            textarea.value = text;
+            
+            // Auto save on type
+            textarea.addEventListener('input', (e) => {
+                const proj = projects.find(p => p.id === currentActiveProjectId);
+                proj.plans[index] = e.target.value;
+                saveProjectsToLocal();
+            });
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(textarea);
+            container.appendChild(wrapper);
+        }
+
+        function addPlanBox() {
+            if(!currentActiveProjectId) return;
+            const proj = projects.find(p => p.id === currentActiveProjectId);
+            proj.plans.push('');
+            saveProjectsToLocal();
+            
+            const container = document.getElementById('planList');
+            createPlanBox(proj.plans.length - 1, '', container);
+            
+            // เลื่อนจอลงมาให้เห็นปุ่ม (เนื่องจากกล่องถูกเพิ่ม)
+            setTimeout(() => {
+                document.getElementById('planControls').scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }, 100);
+        }
+
+        // Success Flow
+        function confirmSuccessModal() {
+            document.getElementById('confirmModal').classList.add('active');
+        }
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+        }
+
+        function handleSuccessConfirmed() {
+            if(!currentActiveProjectId) return;
+            const proj = projects.find(p => p.id === currentActiveProjectId);
+            proj.status = 'success';
+            saveProjectsToLocal();
+            
+            closeConfirmModal();
+            renderSelectOptions(); // Update dropdown text
+            
+            // Animate transition
+            document.getElementById('stepPlans').classList.remove('show');
+            
+            setTimeout(() => {
+                document.getElementById('stepCompleted').classList.add('show');
+            }, 500);
+        }
+
+        function handleNonSuccess() {
+            if(!currentActiveProjectId) return;
+            const proj = projects.find(p => p.id === currentActiveProjectId);
+            proj.status = 'approved'; // กลับไปสถานะกำลังทำ
+            saveProjectsToLocal();
+            
+            renderSelectOptions();
+            
+            document.getElementById('stepCompleted').classList.remove('show');
+            
+            setTimeout(() => {
+                document.getElementById('stepPlans').classList.add('show');
+                renderPlanBoxes(proj);
+            }, 500);
+        }
+
+        function saveProjectsToLocal() {
+            localStorage.setItem('myProjectsData', JSON.stringify(projects));
+        }
+
+    </script>
+</body>
+</html>
